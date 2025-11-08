@@ -1,3 +1,5 @@
+use serde_json::Value;
+
 /// Message for getting bad JSON from the Clash Royale API's response.
 pub const BAD_JSON_ERR_MSG: &str = "Got a bad JSON response from the Clash Royale API";
 
@@ -50,6 +52,19 @@ pub fn cap_to_pascal(s: &str) -> Result<String, String> {
     Ok(result)
 }
 
+/// Searches for the first item in the given JSON array path that matches the predicate.
+/// Returns `None` if the array is not present or if nothing matches the predicate.
+pub fn find_in_json_array<'a, F: Fn(&Value) -> bool>(
+    json: &'a Value,
+    name: &str,
+    f: F,
+) -> Option<&'a Value> {
+    json.get(name)
+        .and_then(|v| v.as_array())?
+        .into_iter()
+        .find(|&v| f(v))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -64,5 +79,17 @@ mod tests {
         // Failing cases:
         assert!(kebab_to_cap("nerf ebarbs").is_err());
         assert!(kebab_to_cap("3m").is_err());
+    }
+
+    #[test]
+    fn cap_to_pascal_test() {
+        // Passing cases:
+        assert_eq!(cap_to_pascal("Mighty Miner").unwrap(), "MightyMiner");
+        assert_eq!(cap_to_pascal("Gaint Skeleton").unwrap(), "GiantSkeleton");
+        assert_eq!(cap_to_pascal("Wall Breakers").unwrap(), "WallBreakers");
+
+        // Failing cases:
+        assert!(cap_to_pascal("Z4ppies").is_err());
+        assert!(cap_to_pascal("Golem sucks.").is_err());
     }
 }

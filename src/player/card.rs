@@ -2,57 +2,43 @@ use std::env::Args;
 
 use serde_json::Value;
 
-use crate::util::{BAD_JSON_ERR_MSG, cap_to_pascal, kebab_to_cap};
+use crate::util::{cap_to_pascal, find_in_json_array, kebab_to_cap, BAD_JSON_ERR_MSG};
 
 use super::Player;
 
 /// Gathers and returns info about the player's card, or returns an error if
 /// any are encountered.
 pub fn get_card_info(args: &mut Args, player: &Player) -> Result<String, String> {
-    let mut output = String::new();
-
     // Get the card's name.
     let card_name = args
         .next()
         .map(|s| kebab_to_cap(&s))
         .ok_or_else(|| "Expected card name")??;
-    output.push_str(&format!(
-        "-#{}/\"{}\"'s {}:",
-        player.id, player.username, card_name
-    ));
+    let mut output = format!("- \"{}\"'s {}:", player.username, card_name);
 
-    // Search for the card in the player's JSON data.
-    let Some(card_info) = player
-        .json
-        .get("cards")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| "Got bad JSON from the Clash Royale API")?
-        .into_iter()
-        .find(|v| {
-            v.get("name")
-                .is_some_and(|s| s.as_str().is_some_and(|s| s == card_name))
-        })
-    else {
+    // Find the card's info.
+    let f = |v: &Value| {
+        v.get("name")
+            .is_some_and(|v| v.as_str().is_some_and(|s| s == card_name))
+    };
+    let Some(card_info) = find_in_json_array(&player.json, "cards", f) else {
         // The card is not in the array if it isn't unlocked.
-        output.push_str("\n\tNot unlocked");
-        return Ok(output);
+        // Assume this is the case.
+        return Ok("\n\tNot unlocked".to_string());
     };
 
-    push_card_level(&mut output, &card_info)?;
-    push_card_star_level(&mut output, &card_info)?;
-    push_card_mastery_level(&mut output, &player.json, &card_name)?;
-
-    // Get the card's star level.
+    output.push_str(get_card_level(&card_info)?.as_str());
+    output.push_str(get_card_star_level(&card_info)?.as_str());
+    output.push_str(get_card_mastery_level(&player.json, &card_name)?.as_str());
 
     Ok(output)
 }
 
-/// Parses and pushes the card's level information to the card info string.
+/// Parses the card's level info and returns it in a string.
+/// The string is formatted to be pushed onto `.get_card_info`'s `output`.
 ///
-/// The given JSON root should point to the card's data.
-///
-/// Returns an error if the JSON is bad.
-fn push_card_level(s: &mut String, json: &Value) -> Result<(), String> {
+/// The given JSON root must be the card's info.
+fn get_card_level(json: &Value) -> Result<String, String> {
     // We need the level and max level to get it relative to level 15.
     // Level just return the number of times the card has been leveled up (minus one).
     let level = json
@@ -65,42 +51,36 @@ fn push_card_level(s: &mut String, json: &Value) -> Result<(), String> {
         .ok_or_else(|| BAD_JSON_ERR_MSG)?;
     let relative_level = (level - max_level) + 14;
 
-    s.push_str(&format!("\n\tLevel {relative_level}"));
-    Ok(())
+    Ok(format!("\n\tLevel: {relative_level}"))
 }
 
-/// Parses and pushes the card's star level information to the card info string.
+/// Parses the card's star level info and returns it in a string.
+/// The string is formatted to be pushed onto `.get_card_info`'s `output`.
 ///
-/// The given JSON root should point to the card's data.
-///
-/// Returns a `Result` for consistency, but always returns `Ok`.
-fn push_card_star_level(s: &mut String, json: &Value) -> Result<(), String> {
+/// The given JSON root must be the card's info.
+fn get_card_star_level(json: &Value) -> Result<String, String> {
     let star_level = json.get("starLevel").and_then(|v| v.as_i64()).unwrap_or(0);
 
-    s.push_str(&format!("\n\tStar Level: {star_level}"));
-    Ok(())
+    Ok(format!("\n\tStar Level: {star_level}"))
 }
 
-/// Parses and pushes the card's mastery level information to the card info string.
+/// Parses the card's mastery level info and returns it in a string.
+/// The string is formatted to be pushed onto `.get_card_info`'s `output`.
 ///
-/// The given JSON root should point to the player's data.
+/// The given JSON root must be the player's info.
 ///
-/// Returns an error if the JSON is bad.
-fn push_card_mastery_level(s: &mut String, json: &Value, name: &str) -> Result<(), String> {
+/// FIXME: Some cards don't have mastery badges with the same name. For example,
+/// Mother With's badge name is "MasteryWitchMother", Rune Giant's is
+/// "MasteryGiantBuffer", etc. which will say they have a mastery level of zero,
+/// which may not be true.
+fn get_card_mastery_level(json: &Value, name: &str) -> Result<String, String> {
     let badge_name = format!("Mastery{}", cap_to_pascal(name)?);
-    let Some(mastery_info) = json
-        .get("badges")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| BAD_JSON_ERR_MSG)?
-        .into_iter()
-        .find(|v| {
-            v.get("name")
-                .is_some_and(|v| v.as_str().is_some_and(|s| s == badge_name))
-        })
-    else {
-        // The card is not in the array if its mastery level is less than one.
-        s.push_str("\n\tMastery Level 0");
-        return Ok(());
+    let f = |v: &Value| {
+        v.get("name")
+            .is_some_and(|v| v.as_str().is_some_and(|s| s == badge_name))
+    };
+    let Some(mastery_info) = find_in_json_array(json, "badges", f) else {
+        return Ok("\n\tMastery Level 0".to_string());
     };
 
     // Get level and max level.
@@ -113,6 +93,5 @@ fn push_card_mastery_level(s: &mut String, json: &Value, name: &str) -> Result<(
         .and_then(|v| v.as_i64())
         .ok_or_else(|| BAD_JSON_ERR_MSG)?;
 
-    s.push_str(&format!("\n\tMastery Level {level}/{max_level}"));
-    Ok(())
+    Ok(format!("\n\tMastery Level: {level}/{max_level}"))
 }
