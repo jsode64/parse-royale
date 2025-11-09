@@ -3,12 +3,12 @@ mod card;
 use serde_json::Value;
 use std::env::Args;
 
-use crate::api::api_call;
+use crate::{
+    api::{api_call, API_PLAYER_URL},
+    util::BAD_JSON_ERR_MSG,
+};
 
 use card::get_card_info;
-
-/// The URL for getting player info from the Clash Royale API.
-const API_PLAYER_URL: &str = "https://api.clashroyale.com/v1/players/%23";
 
 /// A player's basic info.
 pub struct Player {
@@ -30,7 +30,7 @@ impl Player {
         let username = json
             .get("name")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| "Got bad JSON from the Clash Royale API")?
+            .ok_or_else(|| BAD_JSON_ERR_MSG)?
             .to_string();
 
         Ok(Self { username, json })
@@ -52,7 +52,7 @@ pub fn process_player_commands(mut args: Args) -> Result<(), String> {
     while let Some(arg) = args.next() {
         let output = match arg.as_str() {
             // Display info about the player's card.
-            "-c" => get_card_info(&mut args, &player)?,
+            "--card" => get_card_info(&mut args, &player)?,
 
             // Errors:
             _ => return Err(format!("Unexpected input: `{arg}`")),

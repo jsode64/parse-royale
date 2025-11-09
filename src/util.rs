@@ -1,55 +1,30 @@
-use serde_json::Value;
+use serde_json::{to_string_pretty, Value};
+use std::{fs::File, io::Write};
 
 /// Message for getting bad JSON from the Clash Royale API's response.
 pub const BAD_JSON_ERR_MSG: &str = "Got a bad JSON response from the Clash Royale API";
 
-/// Converts the input kebab-case string to capital case. For example:
-/// `mega-minion` to `Mega Minion`.
-///
-/// Returns the converted string or an error if the input is the wrong format.
-pub fn kebab_to_cap(s: &str) -> Result<String, String> {
-    let mut result = String::with_capacity(s.len());
-    let mut next_caps = true;
-
-    for c in s.chars() {
-        result.push(match c {
-            'a'..='z' => {
-                if next_caps {
-                    next_caps = false;
-                    c.to_ascii_uppercase()
-                } else {
-                    c.to_ascii_lowercase()
-                }
-            }
-            '-' | '_' | '.' => {
-                next_caps = true;
-                ' '
-            }
-            _ => return Err(format!("Invalid format for `{s}`. Should be kebab-case")),
-        });
+/// Returns `true` if the string is kebab-case, `false` if not.
+pub fn is_kebab_case(s: &str) -> bool {
+    // Can't start or end with a hyphen.
+    if s.starts_with('-') || s.ends_with('-') {
+        return false;
     }
 
-    Ok(result)
-}
+    // Make sure all are lowercase and hyphens are separated.
+    let mut last_was_hyphen = false;
+    s.chars().all(|c| {
+        let is_hyphen = c == '-';
 
-/// Converts the input capital case string to Pascal case. For example:
-/// `Mega Minion` to `MegaMinion`.
-///
-/// Returns the converted string or an error if the input is the wrong format.
-pub fn cap_to_pascal(s: &str) -> Result<String, String> {
-    let mut result = String::with_capacity(s.len());
+        let valid = if is_hyphen {
+            !last_was_hyphen
+        } else {
+            matches!(c, 'a'..='z' | '0'..='9')
+        };
 
-    for c in s.chars() {
-        match c {
-            'a'..='z' | 'A'..='Z' => {
-                result.push(c);
-            }
-            ' ' => {}
-            _ => return Err(format!("Invalid format for `{s}`. Should be kebab-case")),
-        }
-    }
-
-    Ok(result)
+        last_was_hyphen = is_hyphen;
+        valid
+    })
 }
 
 /// Searches for the first item in the given JSON array path that matches the predicate.
@@ -65,31 +40,12 @@ pub fn find_in_json_array<'a, P: FnMut(&Value) -> bool>(
         .find(|&v| predicate(v))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Write the JSON to the given file, prettily.
+pub fn write_json(json: &Value, path: &str) -> Result<(), String> {
+    let mut f = File::create(path)
+        .map_err(|_| format!("Failed to create/open file `{path}` for writing"))?;
+    let s = to_string_pretty(json).map_err(|_| BAD_JSON_ERR_MSG)?;
 
-    #[test]
-    fn kebab_to_cap_test() {
-        // Passing cases:
-        assert_eq!(kebab_to_cap("mega-minion").unwrap(), "Mega Minion");
-        assert_eq!(kebab_to_cap("royal_giant").unwrap(), "Royal Giant");
-        assert_eq!(kebab_to_cap("buff.the.monk").unwrap(), "Buff The Monk");
-
-        // Failing cases:
-        assert!(kebab_to_cap("nerf ebarbs").is_err());
-        assert!(kebab_to_cap("3m").is_err());
-    }
-
-    #[test]
-    fn cap_to_pascal_test() {
-        // Passing cases:
-        assert_eq!(cap_to_pascal("Mighty Miner").unwrap(), "MightyMiner");
-        assert_eq!(cap_to_pascal("Gaint Skeleton").unwrap(), "GiantSkeleton");
-        assert_eq!(cap_to_pascal("Wall Breakers").unwrap(), "WallBreakers");
-
-        // Failing cases:
-        assert!(cap_to_pascal("Z4ppies").is_err());
-        assert!(cap_to_pascal("Golem sucks.").is_err());
-    }
+    f.write_all(s.as_bytes())
+        .map_err(|_| format!("Failed to write to file `{path}`"))
 }

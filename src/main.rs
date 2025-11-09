@@ -1,4 +1,5 @@
 mod api;
+mod cards;
 mod data;
 mod player;
 mod util;
@@ -10,9 +11,9 @@ use player::process_player_commands;
 
 /// The string printed when `--help` is pased.
 const HELP_STR: &str = "- List of commands:\
-    \n\t`-p`: Get player info.\
+    \n\t`-p`: Get player info:\
         \n\t\t`parse-royale -p QQUUCL -c berserker -c miner\
-    \n\t`-d`: Get raw JSON data to write to a file\
+    \n\t`-d`: Get raw JSON data to write to a file:\
         \n\t\t`parse-royale -d -c card_data.json`";
 
 fn main() {

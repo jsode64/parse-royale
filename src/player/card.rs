@@ -1,25 +1,23 @@
+use serde_json::Value;
 use std::env::Args;
 
-use serde_json::Value;
-
-use crate::util::{cap_to_pascal, find_in_json_array, kebab_to_cap, BAD_JSON_ERR_MSG};
+use crate::{
+    cards::Card,
+    util::{find_in_json_array, BAD_JSON_ERR_MSG},
+};
 
 use super::Player;
 
 /// Gathers and returns info about the player's card, or returns an error if
 /// any are encountered.
 pub fn get_card_info(args: &mut Args, player: &Player) -> Result<String, String> {
-    // Get the card's name.
-    let card_name = args
-        .next()
-        .map(|s| kebab_to_cap(&s))
-        .ok_or_else(|| "Expected card name")??;
-    let mut output = format!("- \"{}\" {}:", player.username, card_name);
+    let card = Card::from_name(args.next().ok_or_else(|| "Expected card name")?.as_str())?;
+    let mut output = format!("- \"{}\" {}:", player.username, card.name);
 
     // Find the card's info.
     let predicate = |v: &Value| {
-        v.get("name")
-            .is_some_and(|v| v.as_str().is_some_and(|s| s == card_name))
+        v.get("id")
+            .is_some_and(|v| v.as_i64().is_some_and(|id| id == card.id))
     };
     let Some(card_info) = find_in_json_array(&player.json, "cards", predicate) else {
         // The card is not in the array if it isn't unlocked.
@@ -30,7 +28,7 @@ pub fn get_card_info(args: &mut Args, player: &Player) -> Result<String, String>
 
     output.push_str(get_card_level(&card_info)?.as_str());
     output.push_str(get_card_star_level(&card_info)?.as_str());
-    output.push_str(get_card_mastery_level(&player.json, &card_name)?.as_str());
+    output.push_str(get_card_mastery_level(&player.json, &card)?.as_str());
 
     Ok(output)
 }
@@ -69,16 +67,10 @@ fn get_card_star_level(json: &Value) -> Result<String, String> {
 /// The string is formatted to be pushed onto `.get_card_info`'s `output`.
 ///
 /// The given JSON root must be the player's info.
-///
-/// FIXME: Some cards don't have mastery badges with the same name. For example,
-/// Mother With's badge name is "MasteryWitchMother", Rune Giant's is
-/// "MasteryGiantBuffer", etc. which will say they have a mastery level of zero,
-/// which may not be true.
-fn get_card_mastery_level(json: &Value, name: &str) -> Result<String, String> {
-    let badge_name = format!("Mastery{}", cap_to_pascal(name)?);
+fn get_card_mastery_level(json: &Value, card: &Card) -> Result<String, String> {
     let predicate = |v: &Value| {
         v.get("name")
-            .is_some_and(|v| v.as_str().is_some_and(|s| s == badge_name))
+            .is_some_and(|v| v.as_str().is_some_and(|s| s == card.badge_name))
     };
     let Some(mastery_info) = find_in_json_array(json, "badges", predicate) else {
         return Ok("\n\tMastery Level 0".to_string());
