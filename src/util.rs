@@ -54,15 +54,15 @@ pub fn cap_to_pascal(s: &str) -> Result<String, String> {
 
 /// Searches for the first item in the given JSON array path that matches the predicate.
 /// Returns `None` if the array is not present or if nothing matches the predicate.
-pub fn find_in_json_array<'a, F: Fn(&Value) -> bool>(
+pub fn find_in_json_array<'a, P: FnMut(&Value) -> bool>(
     json: &'a Value,
     name: &str,
-    f: F,
+    mut predicate: P,
 ) -> Option<&'a Value> {
     json.get(name)
         .and_then(|v| v.as_array())?
         .into_iter()
-        .find(|&v| f(v))
+        .find(|&v| predicate(v))
 }
 
 #[cfg(test)]

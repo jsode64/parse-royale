@@ -14,17 +14,18 @@ pub fn get_card_info(args: &mut Args, player: &Player) -> Result<String, String>
         .next()
         .map(|s| kebab_to_cap(&s))
         .ok_or_else(|| "Expected card name")??;
-    let mut output = format!("- \"{}\"'s {}:", player.username, card_name);
+    let mut output = format!("- \"{}\" {}:", player.username, card_name);
 
     // Find the card's info.
-    let f = |v: &Value| {
+    let predicate = |v: &Value| {
         v.get("name")
             .is_some_and(|v| v.as_str().is_some_and(|s| s == card_name))
     };
-    let Some(card_info) = find_in_json_array(&player.json, "cards", f) else {
+    let Some(card_info) = find_in_json_array(&player.json, "cards", predicate) else {
         // The card is not in the array if it isn't unlocked.
         // Assume this is the case.
-        return Ok("\n\tNot unlocked".to_string());
+        output.push_str("\n\tNot unlocked");
+        return Ok(output);
     };
 
     output.push_str(get_card_level(&card_info)?.as_str());
@@ -75,11 +76,11 @@ fn get_card_star_level(json: &Value) -> Result<String, String> {
 /// which may not be true.
 fn get_card_mastery_level(json: &Value, name: &str) -> Result<String, String> {
     let badge_name = format!("Mastery{}", cap_to_pascal(name)?);
-    let f = |v: &Value| {
+    let predicate = |v: &Value| {
         v.get("name")
             .is_some_and(|v| v.as_str().is_some_and(|s| s == badge_name))
     };
-    let Some(mastery_info) = find_in_json_array(json, "badges", f) else {
+    let Some(mastery_info) = find_in_json_array(json, "badges", predicate) else {
         return Ok("\n\tMastery Level 0".to_string());
     };
 
