@@ -27,6 +27,7 @@ pub fn get_card_info(args: &mut Args, player: &Player) -> Result<String, String>
     };
 
     output.push_str(get_card_level(&card_info)?.as_str());
+    output.push_str(get_card_evo_level(&card_info)?.as_str());
     output.push_str(get_card_star_level(&card_info)?.as_str());
     output.push_str(get_card_mastery_level(&player.json, &card)?.as_str());
 
@@ -51,6 +52,21 @@ fn get_card_level(json: &Value) -> Result<String, String> {
     let relative_level = (level - max_level) + 14;
 
     Ok(format!("\n\tLevel: {relative_level}"))
+}
+
+/// Parses the card's evolution level and returns its info in a string.
+/// If the card does not have an evolution, returns an empty string.
+///
+/// The given JSON root must be the card's info.
+fn get_card_evo_level(json: &Value) -> Result<String, String> {
+    // If this field doesn't exist the card doesn't have an evolution.
+    if json.get("maxEvolutionLevel").is_none() {
+        return Ok(String::new());
+    }
+
+    // If this field exists the player has the evolution; it will only ever be 1.
+    let has_evolution = json.get("evolutionLevel").is_some();
+    Ok(format!("\n\tEvo unlocked: {has_evolution}"))
 }
 
 /// Parses the card's star level info and returns it in a string.
