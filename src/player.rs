@@ -1,4 +1,5 @@
 mod card;
+mod info;
 
 use serde_json::Value;
 use std::env::Args;
@@ -9,6 +10,7 @@ use crate::{
 };
 
 use card::get_card_info;
+use info::get_player_info;
 
 /// A player's basic info.
 pub struct Player {
@@ -45,12 +47,15 @@ pub fn process_player_commands(mut args: Args) -> Result<(), String> {
     let player = Player::new(&id)?;
 
     println!(
-        "Got player data from ID #{}; username \"{}\"",
+        "- Got player data from ID #{} (username \"{}\")",
         id, player.username
     );
 
     while let Some(arg) = args.next() {
         let output = match arg.as_str() {
+            // Display general info about the player.
+            "--info" => get_player_info(&mut args, &player)?,
+
             // Display info about the player's card.
             "--card" => get_card_info(&mut args, &player)?,
 

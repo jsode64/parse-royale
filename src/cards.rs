@@ -11,6 +11,8 @@ pub struct Card {
     pub id: i64,
 }
 
+pub const NUM_CARDS: usize = 121;
+
 macro_rules! def_cards {
     ($($name:ident: $card_name:expr, $badge_name:expr, $id: expr);* ;) => {
         $(const $name: Card = Card::new($card_name, $badge_name, $id);)*
@@ -28,7 +30,6 @@ impl Card {
     }
 
     /// Matches the given card name to a card.
-    ///
     /// Returns an error if the name is not kebab-case or if it isn't a card.
     pub fn from_name(name: &str) -> Result<&'static Self, String> {
         // Make sure the name is kebab case before doing mass string comparisons.

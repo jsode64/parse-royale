@@ -26,7 +26,7 @@ if data.get("reason") is not None:
     quit()
 #
 
-print("Got card data")
+print(f"Got data for {len(data["items"])} cards")
 
 # Not all cards have their mastery with the same name (or proper pascal case) so they must be mapped.
 card_mastery_map = {
